@@ -4,6 +4,7 @@ import gym
 import argparse
 import os
 import d4rl
+import wandb
 
 import utils
 import TD3_BC
@@ -11,7 +12,7 @@ import TD3_BC
 
 # Runs policy for X episodes and returns D4RL score
 # A fixed seed is used for the eval environment
-def eval_policy(policy, env_name, seed, mean, std, seed_offset=100, eval_episodes=10):
+def eval_policy(policy, env_name, seed, mean, std, run, seed_offset=100, eval_episodes=10):
 	eval_env = gym.make(env_name)
 	eval_env.seed(seed + seed_offset)
 
@@ -30,6 +31,9 @@ def eval_policy(policy, env_name, seed, mean, std, seed_offset=100, eval_episode
 	print("---------------------------------------")
 	print(f"Evaluation over {eval_episodes} episodes: {avg_reward:.3f}, D4RL score: {d4rl_score:.3f}")
 	print("---------------------------------------")
+
+	run.log({"Eval mean" : avg_reward, "Normalized mean" : d4rl_score})
+
 	return d4rl_score
 
 
@@ -55,6 +59,7 @@ if __name__ == "__main__":
 	# TD3 + BC
 	parser.add_argument("--alpha", default=2.5)
 	parser.add_argument("--normalize", default=True)
+	parser.add_argument("--key", default="9693e19323d20b494a26a6ee07f05881b2107bf8")
 	args = parser.parse_args()
 
 	file_name = f"{args.policy}_{args.env}_{args.seed}"
@@ -107,6 +112,9 @@ if __name__ == "__main__":
 		mean,std = replay_buffer.normalize_states() 
 	else:
 		mean,std = 0,1
+
+	wandb.login(key = args.key)
+	run = wandb.init(project="Baselines", config=args)
 	
 	evaluations = []
 	for t in range(int(args.max_timesteps)):
@@ -114,6 +122,6 @@ if __name__ == "__main__":
 		# Evaluate episode
 		if (t + 1) % args.eval_freq == 0:
 			print(f"Time steps: {t+1}")
-			evaluations.append(eval_policy(policy, args.env, args.seed, mean, std))
+			evaluations.append(eval_policy(policy, args.env, args.seed, mean, std, run))
 			np.save(f"./results/{file_name}", evaluations)
 			if args.save_model: policy.save(f"./models/{file_name}")
